@@ -1,0 +1,28 @@
+\subsection{AI Workflow Integration}
+
+To enhance the velocity and depth of the assessment and test the tools that \client had given us access to, \team integrated an Agentic AI workflow utilizing the Claude Workbench and Claude CLI. This system helped us ingest high-volumes of log data, correlate vulnerability scans, and standardize our reporting metrics.  
+
+The AI system was integrated into specific phases of the engagement lifecycle:
+
+\begin{itemize}
+    \item \textbf{Vulnerability Discovery \& Correlation:} The Claude CLI was utilized to ingest raw output from enumeration tools such as Nmap and NetExec [1][2]. This allowed for rapid correlation between open ports and potential misconfigurations, specifically aiding in the identification of the unauthenticated Bridge Command Center on port 8080 [3] and the Ballast Control System on port 9000 [4].
+    \item \textbf{Log Analysis:} The system processed extensive datasets to identify anomalies that might escape manual review. This capability was instrumental in analyzing the extracted database schema during the Local File Inclusion (LFI) exploitation [5], verifying the relationship between the \texttt{boatgps} credentials and the live navigation database.
+    \item \textbf{Reporting Standardization:} The Claude Workbench was employed to synthesize finding data, ensuring consistent formatting of CVSS v3.1 vectors and generating standardized descriptions for remediations [6].
+\end{itemize}
+
+\subsubsection{Analysis of AI Efficacy}
+While the integration of Agentic AI provided significant operational advantages, it also introduced specific limitations requiring human oversight. The following analysis outlines the impact of this workflow on the engagement:
+
+\paragraph{Strengths (Pros):}
+\begin{itemize}
+    \item \textbf{Velocity:} The workflow significantly accelerated the transition from "Scanning" to "Exploitation." By automating the parsing of service versions, the team could immediately focus on high-value targets, such as the default \texttt{guest:guest} credentials found on the Ballast Control System [4].
+    \item \textbf{Depth \& Data Correlation:} The AI demonstrated a superior ability to retain and correlate disparate data points. It successfully mapped the exposed LFI endpoint in \texttt{/api/download\_csv.php} to the backend MySQL database version (5.7.44) [5][7], ensuring the full attack chain was documented accurately.
+    \item \textbf{Consistency:} The use of AI ensured a uniform voice and rigorous standardization in the final deliverable. This eliminated human error in repetitive tasks, such as transcribing IP addresses (e.g., 10.0.1.13) and formatting impact statements regarding the CIA Triad [8].
+\end{itemize}
+
+\paragraph{Limitations (Cons):}
+\begin{itemize}
+    \item \textbf{Hallucinations:} The model occasionally generated "false positives," inferring the existence of files or directories that did not exist on the target system. For example, during the LFI enumeration, the AI suggested theoretical file paths that required manual validation against the target Linux host [9].
+    \item \textbf{Lack of Business Context:} The AI lacked an intrinsic understanding of All Ports Tours' business logic. While it could identify that the Bridge Command Center was unauthenticated, it viewed this merely as a web vulnerability. It required human analysts to contextualize the catastrophic physical risk of a ship changing course or speed [10].
+    \item \textbf{Operator Understanding Gap:} Reliance on AI for finding generation poses a risk where the operator may identify \textit{that} a breach is possible without understanding \textit{how} it functions. To mitigate this, we manually verified every finding to ensure that the team understood the underlying mechanics (e.g., the specific directory traversal logic in the API) to provide accurate remediation advice to developers [11].
+\end{itemize}
