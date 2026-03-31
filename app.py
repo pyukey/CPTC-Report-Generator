@@ -8,6 +8,7 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 PREWRITES_DIR = os.path.join(BASE_DIR, "prewrites")
+EXECUTIVE_SUMMARY_FILE = os.path.join(BASE_DIR, "report", "content", "executiveSummary.tex")
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 FILE_FIELDS = [
@@ -51,13 +52,40 @@ def get_prewrites():
 def allowed_image_file(filename):
     return '.' in filename and filename.rsplit('.',1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
+
+def read_text_file(path):
+    if not os.path.exists(path):
+        return ""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def write_text_file(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content or "")
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
+@app.route("/overview")
+def overview():
+    return render_template("overview.html")
+
 @app.route("/api/prewrites", methods=["GET"])
 def list_prewrites():
     return jsonify({"prewrites": get_prewrites()})
+
+@app.route("/api/overview/executive-summary", methods=["GET"])
+def get_executive_summary():
+    return jsonify({"content": read_text_file(EXECUTIVE_SUMMARY_FILE)})
+
+@app.route("/api/overview/executive-summary", methods=["PUT"])
+def update_executive_summary():
+    data = request.get_json(force=True)
+    write_text_file(EXECUTIVE_SUMMARY_FILE, data.get("content", ""))
+    return jsonify({"status": "ok"})
 
 @app.route("/api/prewrites/<prewrite_name>", methods=["GET"])
 def get_prewrite(prewrite_name):

@@ -27,6 +27,18 @@ body {
   gap: 8px;
   margin-bottom: 10px;
 }
+.nav-link-button {
+  display: inline-block;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #0056b3;
+  color: white;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.nav-link-button:hover {
+  background: #00408a;
+}
 #finding-list {
   list-style: none;
   padding-left: 0;
@@ -263,6 +275,70 @@ body {
 }
 .text-box {
   background: #ffffff;
+}
+.overview-body {
+  display: block;
+  min-height: 100vh;
+  background: #f5f7fb;
+}
+.overview-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 20px 48px;
+}
+.overview-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.overview-page-header h1 {
+  margin: 0 0 6px;
+}
+.overview-page-header p {
+  margin: 0;
+  color: #555;
+}
+.overview-panel {
+  padding: 20px;
+  border: 1px solid #dde3ee;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+#overview-status {
+  min-height: 20px;
+  margin-bottom: 12px;
+  color: #555;
+}
+#executive-summary-editor {
+  width: 100%;
+  min-height: 70vh;
+  padding: 16px;
+  border: 1px solid #ccd4e0;
+  border-radius: 10px;
+  box-sizing: border-box;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+.overview-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.overview-actions button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #28a745;
+  color: white;
+  cursor: pointer;
+}
+.overview-actions button:hover {
+  background: #218838;
 }
 #cvssboard {
   text-align: center;
