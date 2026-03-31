@@ -11,14 +11,99 @@ const FILE_FIELDS = [
 let currentFinding = null;
 let allPrewriteOptions = null;
 
+const cvssOverrideEnabled = () => document.getElementById("cvss-override-enabled");
+const cvssOverrideScore = () => document.getElementById("cvss-override-score");
+
 var c = new CVSS("cvssboard", {
     onchange: function() {
         window.location.hash = c.get().vector;
-        c.vector.setAttribute('href', '#' + c.get().vector)
+        c.vector.setAttribute('href', '#' + c.get().vector);
+        applyCVSSScoreDisplay();
     }
 });
 if (window.location.hash.substring(1).length > 0) {
     c.set(decodeURIComponent(window.location.hash.substring(1)));
+}
+
+function normalizeCVSSOverrideScore(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  const parsed = Number.parseFloat(value);
+  if (Number.isNaN(parsed) || parsed < 0 || parsed > 10) {
+    return "";
+  }
+
+  return parsed.toFixed(1);
+}
+
+function setCVSSSeverityForScore(scoreValue) {
+  const parsed = Number.parseFloat(scoreValue);
+  if (Number.isNaN(parsed)) {
+    c.severity.className = "severity";
+    c.severity.textContent = "?";
+    c.severity.title = "Not defined";
+    return;
+  }
+
+  const rating = c.severityRating(parsed);
+  c.severity.className = `${rating.name} severity`;
+  c.severity.innerHTML = `${rating.name}<sub>${rating.bottom} - ${rating.top}</sub>`;
+  c.severity.title = `${rating.bottom} - ${rating.top}`;
+}
+
+function getManualCVSSOverride() {
+  const enabled = cvssOverrideEnabled();
+  const scoreInput = cvssOverrideScore();
+
+  if (!enabled || !scoreInput || !enabled.checked) {
+    return "";
+  }
+
+  return normalizeCVSSOverrideScore(scoreInput.value);
+}
+
+function setManualCVSSOverride(value) {
+  const enabled = cvssOverrideEnabled();
+  const scoreInput = cvssOverrideScore();
+  if (!enabled || !scoreInput) return;
+
+  const normalized = normalizeCVSSOverrideScore(value);
+  enabled.checked = normalized !== "";
+  scoreInput.disabled = !enabled.checked;
+  scoreInput.value = normalized;
+}
+
+function clearManualCVSSOverride() {
+  setManualCVSSOverride("");
+}
+
+function applyCVSSScoreDisplay() {
+  const calculatedScore = c.calculate();
+  const overrideScore = getManualCVSSOverride();
+  const displayedScore = overrideScore || calculatedScore;
+
+  c.score.textContent = displayedScore;
+  setCVSSSeverityForScore(displayedScore);
+}
+
+function validateManualCVSSOverride() {
+  const enabled = cvssOverrideEnabled();
+  const scoreInput = cvssOverrideScore();
+  if (!enabled || !scoreInput || !enabled.checked) {
+    return true;
+  }
+
+  const normalized = normalizeCVSSOverrideScore(scoreInput.value);
+  if (!normalized) {
+    setStatus("Manual CVSS override must be between 0.0 and 10.0", true);
+    scoreInput.focus();
+    return false;
+  }
+
+  scoreInput.value = normalized;
+  return true;
 }
 
 async function loadPrewrites() {
@@ -200,20 +285,39 @@ function deleteRow(button) {
 }
 
 function serializeCVSS() {
+  if (!validateManualCVSSOverride()) {
+    throw new Error("Manual CVSS override is invalid");
+  }
+
   const cvssData = c.get();
-  return `{${cvssData.score}}{${cvssData.likelihood}}{${cvssData.impact}}{${cvssData.vector}}`;
+  const override = getManualCVSSOverride();
+  const score = override || normalizeCVSSOverrideScore(cvssData.score) || cvssData.score;
+  return `{${score}}{${cvssData.likelihood}}{${cvssData.impact}}{${cvssData.vector}}{${override}}`;
 }
 
 function deserializeCVSS(serialized) {
   const m = serialized.match(/\{([^}]*)\}/g) || [];
-  if (m.length < 4) return;
+  if (m.length < 4) {
+    clearManualCVSSOverride();
+    applyCVSSScoreDisplay();
+    return;
+  }
 
   const score      = m[0].slice(1, -1);
   const likelihood = m[1].slice(1, -1);
   const impact     = m[2].slice(1, -1);
   const vector     = m[3].slice(1, -1);
+  const override   = m[4] ? m[4].slice(1, -1) : "";
 
   c.set({ score, likelihood, impact, vector });
+  if (override) {
+    setManualCVSSOverride(override);
+  } else if (normalizeCVSSOverrideScore(score) && normalizeCVSSOverrideScore(score) !== normalizeCVSSOverrideScore(c.calculate())) {
+    setManualCVSSOverride(score);
+  } else {
+    clearManualCVSSOverride();
+  }
+  applyCVSSScoreDisplay();
 }
 
 function serializeIPsFromTable() {
@@ -368,6 +472,9 @@ async function saveCurrentFinding() {
     setStatus("No finding selected", true);
     return;
   }
+  if (!validateManualCVSSOverride()) {
+    return;
+  }
 
   const payload = { files: {} };
   FILE_FIELDS.forEach(fname => {
@@ -398,6 +505,9 @@ async function saveField(fieldName) {
   
   let payload;
   const saveBtn = event.target;
+  if (!validateManualCVSSOverride()) {
+    return;
+  }
   
   if (fieldName == 'cvs') {
     payload = { files: { [fieldName+'.txt']: serializeCVSS() } };
@@ -513,6 +623,34 @@ async function handleImageUpload(files) {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+  const overrideEnabled = cvssOverrideEnabled();
+  const overrideScoreInput = cvssOverrideScore();
+
+  if (overrideEnabled && overrideScoreInput) {
+    overrideEnabled.addEventListener("change", () => {
+      overrideScoreInput.disabled = !overrideEnabled.checked;
+      if (!overrideEnabled.checked) {
+        overrideScoreInput.value = "";
+      } else if (!normalizeCVSSOverrideScore(overrideScoreInput.value)) {
+        overrideScoreInput.value = normalizeCVSSOverrideScore(c.calculate());
+      }
+      applyCVSSScoreDisplay();
+    });
+
+    overrideScoreInput.addEventListener("input", () => {
+      applyCVSSScoreDisplay();
+    });
+
+    overrideScoreInput.addEventListener("blur", () => {
+      if (!overrideEnabled.checked) return;
+      const normalized = normalizeCVSSOverrideScore(overrideScoreInput.value);
+      if (normalized) {
+        overrideScoreInput.value = normalized;
+      }
+      applyCVSSScoreDisplay();
+    });
+  }
+
   document
     .getElementById("create-finding-btn")
     .addEventListener("click", createFinding);
@@ -555,5 +693,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   loadFindings().catch((e) => setStatus(e.message, true));
   loadPrewrites().catch((e) => console.error(e));
+  clearManualCVSSOverride();
+  applyCVSSScoreDisplay();
 });
 
