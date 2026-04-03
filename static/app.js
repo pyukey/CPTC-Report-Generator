@@ -10,6 +10,11 @@ const FILE_FIELDS = [
 
 let currentFinding = null;
 let allPrewriteOptions = null;
+const imagePickerState = {
+  targetId: null,
+  range: null,
+  selectedFilename: null
+};
 
 const cvssOverrideEnabled = () => document.getElementById("cvss-override-enabled");
 const cvssOverrideScore = () => document.getElementById("cvss-override-score");
@@ -25,6 +30,259 @@ if (window.location.hash.substring(1).length > 0) {
     c.set(decodeURIComponent(window.location.hash.substring(1)));
 }
 
+function getImagePickerModal() {
+  return document.getElementById("image-picker-modal");
+}
+
+function getImagePickerList() {
+  return document.getElementById("image-picker-list");
+}
+
+function getImagePickerCaption() {
+  return document.getElementById("image-picker-caption");
+}
+
+function getImagePickerInsertButton() {
+  return document.getElementById("image-picker-insert");
+}
+
+function getImagePickerMessage() {
+  return document.getElementById("image-picker-message");
+}
+
+function getFieldDisplayName(field) {
+  return field.replace(".txt", "").replace(/[-_]/g, " ");
+}
+
+function buildImageUrl(filename, findingName = currentFinding) {
+  return `/api/findings/${encodeURIComponent(findingName)}/images/${encodeURIComponent(filename)}`;
+}
+
+function rangeBelongsToEditor(range, editor) {
+  if (!range || !editor) return false;
+  const container = range.commonAncestorContainer;
+  return container === editor || editor.contains(container);
+}
+
+function createCollapsedRangeAtEnd(editor) {
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(false);
+  return range;
+}
+
+function closeImagePicker() {
+  const modal = getImagePickerModal();
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+  imagePickerState.targetId = null;
+  imagePickerState.range = null;
+  imagePickerState.selectedFilename = null;
+}
+
+function selectImagePickerImage(filename) {
+  imagePickerState.selectedFilename = filename;
+  const insertButton = getImagePickerInsertButton();
+  if (insertButton) {
+    insertButton.disabled = !filename;
+  }
+
+  document.querySelectorAll(".image-picker-item").forEach((item) => {
+    item.classList.toggle("selected", item.dataset.filename === filename);
+  });
+}
+
+function renderImagePickerImages(images) {
+  const list = getImagePickerList();
+  const message = getImagePickerMessage();
+  const insertButton = getImagePickerInsertButton();
+  if (!list || !message || !insertButton) return;
+
+  list.innerHTML = "";
+  imagePickerState.selectedFilename = null;
+  insertButton.disabled = true;
+
+  if (!images.length) {
+    message.textContent = "Upload at least one image for this finding before inserting it into the editor.";
+    return;
+  }
+
+  message.textContent = "Choose one of the uploaded images, then add an optional caption.";
+  images.forEach((filename, index) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "image-picker-item";
+    option.dataset.filename = filename;
+
+    const img = document.createElement("img");
+    img.src = buildImageUrl(filename);
+    img.alt = filename;
+
+    const label = document.createElement("span");
+    label.textContent = filename;
+
+    option.appendChild(img);
+    option.appendChild(label);
+    option.addEventListener("click", () => selectImagePickerImage(filename));
+
+    list.appendChild(option);
+    if (index === 0) {
+      selectImagePickerImage(filename);
+    }
+  });
+}
+
+async function openImagePicker(targetId, range) {
+  if (!currentFinding) {
+    setStatus("Select a finding before inserting an image", true);
+    return;
+  }
+
+  const editor = document.getElementById(targetId);
+  if (!editor) return;
+
+  imagePickerState.targetId = targetId;
+  imagePickerState.range = rangeBelongsToEditor(range, editor) ? range.cloneRange() : createCollapsedRangeAtEnd(editor);
+  imagePickerState.selectedFilename = null;
+
+  const caption = getImagePickerCaption();
+  if (caption) {
+    caption.value = "";
+  }
+
+  const modal = getImagePickerModal();
+  if (modal) {
+    modal.classList.remove("hidden");
+  }
+
+  try {
+    const data = await fetchJSON(`/api/findings/${encodeURIComponent(currentFinding)}/images`);
+    renderImagePickerImages(data.images || []);
+  } catch (e) {
+    closeImagePicker();
+    setStatus(e.message, true);
+  }
+}
+
+window.openImagePicker = openImagePicker;
+
+function insertImageIntoEditor() {
+  const filename = imagePickerState.selectedFilename;
+  const editor = imagePickerState.targetId ? document.getElementById(imagePickerState.targetId) : null;
+  if (!filename || !editor) {
+    closeImagePicker();
+    return;
+  }
+
+  editor.focus();
+
+  const selection = window.getSelection();
+  const range = rangeBelongsToEditor(imagePickerState.range, editor)
+    ? imagePickerState.range.cloneRange()
+    : createCollapsedRangeAtEnd(editor);
+
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  const figure = document.createElement("figure");
+  figure.className = "finding-image";
+  figure.setAttribute("data-image-filename", filename);
+
+  const img = document.createElement("img");
+  img.src = buildImageUrl(filename);
+  img.alt = filename;
+  img.setAttribute("data-image-filename", filename);
+
+  figure.appendChild(img);
+
+  const captionText = (getImagePickerCaption()?.value || "").trim();
+  if (captionText) {
+    const figcaption = document.createElement("figcaption");
+    figcaption.textContent = captionText;
+    figure.appendChild(figcaption);
+  }
+
+  const spacer = document.createElement("div");
+  spacer.appendChild(document.createElement("br"));
+
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(figure);
+  fragment.appendChild(spacer);
+
+  range.deleteContents();
+  range.insertNode(fragment);
+
+  const newRange = document.createRange();
+  newRange.setStartAfter(spacer);
+  newRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(newRange);
+
+  closeImagePicker();
+}
+
+async function requestImageDelete(filename, deleteEverywhere = false) {
+  const suffix = deleteEverywhere ? "?delete_everywhere=1" : "";
+  const response = await fetch(`/api/findings/${encodeURIComponent(currentFinding)}/images/${encodeURIComponent(filename)}${suffix}`, {
+    method: "DELETE"
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (e) {}
+
+  if (!response.ok) {
+    const error = new Error(data.error || response.statusText);
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+async function deleteImage(filename) {
+  if (!confirm(`Delete "${filename}"?`)) {
+    return;
+  }
+
+  try {
+    const result = await requestImageDelete(filename);
+    await loadImages();
+    if ((result.removed_references || []).length) {
+      await selectFinding(currentFinding);
+    }
+    setStatus("Image deleted");
+  } catch (e) {
+    const data = e.data || {};
+    if (!data.requires_confirmation) {
+      setStatus(e.message, true);
+      return;
+    }
+
+    const referenceSummary = (data.references || [])
+      .map((ref) => `${getFieldDisplayName(ref.field)} (${ref.count})`)
+      .join(", ");
+
+    const shouldDeleteEverywhere = confirm(
+      `"${filename}" is still embedded in ${referenceSummary}. Delete it everywhere and remove those embedded references?`
+    );
+
+    if (!shouldDeleteEverywhere) {
+      setStatus("Image deletion cancelled");
+      return;
+    }
+
+    try {
+      await requestImageDelete(filename, true);
+      await loadImages();
+      await selectFinding(currentFinding);
+      setStatus("Image deleted everywhere");
+    } catch (forcedError) {
+      setStatus(forcedError.message, true);
+    }
+  }
 function normalizeCVSSOverrideScore(value) {
   if (value === null || value === undefined || value === "") {
     return "";
@@ -570,23 +828,19 @@ async function loadImages() {
       img.alt = filename;
       img.title = filename;
 
+      const label = document.createElement("div");
+      label.className = "image-thumbnail-label";
+      label.textContent = filename;
+
       const delBtn = document.createElement("button");
       delBtn.className = "image-delete";
       delBtn.textContent = "x";
       delBtn.title = "Delete image";
       delBtn.addEventListener("click", async () => {
-        if (confirm(`Delete "${filename}"?`)) {
-	  try {
-	    await fetchJSON(`/api/findings/${encodeURIComponent(currentFinding)}/images/${encodeURIComponent(filename)}`, {
-              method: "DELETE"
-	    });
-            await loadImages();
-	  } catch (e) {
-            setStatus(e.message, true);
-	  }
-	}
+        await deleteImage(filename);
       });
       thumb.appendChild(img);
+      thumb.appendChild(label);
       thumb.appendChild(delBtn);
       gallery.appendChild(thumb);
     });
@@ -650,6 +904,26 @@ window.addEventListener("DOMContentLoaded", () => {
       applyCVSSScoreDisplay();
     });
   }
+
+  document
+    .getElementById("image-picker-close")
+    .addEventListener("click", closeImagePicker);
+
+  document
+    .getElementById("image-picker-cancel")
+    .addEventListener("click", closeImagePicker);
+
+  document
+    .getElementById("image-picker-insert")
+    .addEventListener("click", insertImageIntoEditor);
+
+  document
+    .getElementById("image-picker-modal")
+    .addEventListener("click", (e) => {
+      if (e.target.id === "image-picker-modal") {
+        closeImagePicker();
+      }
+    });
 
   document
     .getElementById("create-finding-btn")
