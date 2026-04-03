@@ -404,6 +404,32 @@ body {
   text-align: center;
   align-content: center;
 }
+.cvss-override-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.cvss-override-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: #333;
+}
+#cvss-override-score {
+  width: 88px;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+#cvss-override-score:disabled {
+  background: #f3f3f3;
+  color: #888;
+}
 @media screen and (min-width: 720px) {
   #cvssboard {
     width: 640px;
