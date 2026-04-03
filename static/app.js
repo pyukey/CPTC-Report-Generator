@@ -283,6 +283,8 @@ async function deleteImage(filename) {
       setStatus(forcedError.message, true);
     }
   }
+}
+
 function normalizeCVSSOverrideScore(value) {
   if (value === null || value === undefined || value === "") {
     return "";
