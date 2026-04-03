@@ -101,7 +101,6 @@
             <button type="button" data-action="inline-code">`Code`</button>
             <button type="button" data-action="code-block">( Code )</button>
             <button type="button" data-action="link">Link</button>
-            <button type="button" data-action="image">Image</button>
           </div>
 	  <button class="field-save-btn" data-field="details" title="Save Details">S</button>
 	</div>
@@ -118,7 +117,6 @@
             <button type="button" data-action="inline-code">`Code`</button>
             <button type="button" data-action="code-block">( Code )</button>
             <button type="button" data-action="link">Link</button>
-            <button type="button" data-action="image">Image</button>
           </div>
 	  <button class="field-save-btn" data-field="confirmation" title="Save Confirmation">S</button>
 	</div>
@@ -135,7 +133,6 @@
             <button type="button" data-action="inline-code">`Code`</button>
             <button type="button" data-action="code-block">( Code )</button>
             <button type="button" data-action="link">Link</button>
-            <button type="button" data-action="image">Image</button>
           </div>
 	  <button class="field-save-btn" data-field="impact" title="Save Impact">S</button>
 	</div>
@@ -152,7 +149,6 @@
             <button type="button" data-action="inline-code">`Code`</button>
             <button type="button" data-action="code-block">( Code )</button>
             <button type="button" data-action="link">Link</button>
-            <button type="button" data-action="image">Image</button>
           </div>
 	  <button class="field-save-btn" data-field="mitigation" title="Save Mitigation">S</button>
 	</div>
@@ -169,7 +165,6 @@
             <button type="button" data-action="inline-code">`Code`</button>
             <button type="button" data-action="code-block">( Code )</button>
             <button type="button" data-action="link">Link</button>
-            <button type="button" data-action="image">Image</button>
           </div>
 	  <button class="field-save-btn" data-field="references" title="Save References">S</button>
 	</div>
@@ -188,25 +183,6 @@
 	</div>
         <!-- Image gallery -->
 	<div id="image-gallery" class="image-gallery"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="image-picker-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3>Insert Uploaded Image</h3>
-        <button type="button" id="image-picker-close" class="modal-close">x</button>
-      </div>
-      <p id="image-picker-message" class="modal-message"></p>
-      <div id="image-picker-list" class="image-picker-list"></div>
-      <label class="image-picker-caption-label" for="image-picker-caption">
-        Caption
-      </label>
-      <input id="image-picker-caption" type="text" placeholder="Optional caption">
-      <div class="modal-actions">
-        <button type="button" id="image-picker-cancel">Cancel</button>
-        <button type="button" id="image-picker-insert">Insert Image</button>
       </div>
     </div>
   </div>
@@ -231,7 +207,7 @@
           const selection = window.getSelection();
           const range = selection.rangeCount ? selection.getRangeAt(0) : null;
 
-          if (!range && action !== 'image') return;
+          if (!range) return;
 
           if (action === 'inline-code') {
             const span = document.createElement('code');
@@ -253,12 +229,6 @@
             const url = prompt('Enter URL:');
             if (url) {
               document.execCommand('createLink', false, url);
-            }
-          }
-
-          if (action === 'image') {
-            if (typeof window.openImagePicker === 'function') {
-              window.openImagePicker(targetId, range ? range.cloneRange() : null);
             }
           }
         } else {

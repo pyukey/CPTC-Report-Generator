@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from html.parser import HTMLParser
 
@@ -78,28 +77,6 @@ def escape_latex_url(url: str) -> str:
     return "".join(pieces)
 
 
-def resolve_image_filename(attr_map: dict[str, str | None]) -> str:
-    direct_filename = attr_map.get("data-image-filename") or ""
-    if direct_filename:
-        return direct_filename
-
-    src = (attr_map.get("src") or "").split("?", 1)[0]
-    return os.path.basename(src)
-
-
-def latex_image_path(finding_name: str, filename: str) -> str:
-    if finding_name:
-        return f"images/findings/{finding_name}/{filename}"
-    return f"images/{filename}"
-
-
-def make_figure_label(finding_name: str, filename: str, counter: int) -> str:
-    stem = os.path.splitext(os.path.basename(filename))[0]
-    raw_label = f"{finding_name}-{stem}-{counter}" if finding_name else f"{stem}-{counter}"
-    cleaned = "".join(ch if ch.isalnum() else "-" for ch in raw_label).strip("-").lower()
-    return cleaned or f"figure-{counter}"
-
-
 class HtmlToLatexParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -107,31 +84,9 @@ class HtmlToLatexParser(HTMLParser):
         self.pre_parts: list[str] = []
         self.in_pre = False
         self.in_inline_code = False
-        self.in_figure = False
-        self.in_figcaption = False
-        self.figure_filename = ""
-        self.figure_caption_parts: list[str] = []
-        self.figure_counter = 0
-        self.finding_name = os.environ.get("CPTC_FINDING_NAME", "")
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr_map = dict(attrs)
-
-        if self.in_figure:
-            if tag == "figcaption":
-                self.in_figcaption = True
-                return
-            if tag == "img":
-                self.figure_filename = self.figure_filename or resolve_image_filename(attr_map)
-                return
-            return
-
-        if tag == "figure":
-            self.in_figure = True
-            self.in_figcaption = False
-            self.figure_filename = resolve_image_filename(attr_map)
-            self.figure_caption_parts = []
-            return
 
         if tag == "div":
             return
@@ -169,27 +124,6 @@ class HtmlToLatexParser(HTMLParser):
             return
 
     def handle_endtag(self, tag: str) -> None:
-        if self.in_figure:
-            if tag == "figcaption":
-                self.in_figcaption = False
-                return
-            if tag == "figure":
-                if self.figure_filename:
-                    self.figure_counter += 1
-                    image_path = latex_image_path(self.finding_name, self.figure_filename)
-                    caption = "".join(self.figure_caption_parts).strip()
-                    if caption:
-                        label = make_figure_label(self.finding_name, self.figure_filename, self.figure_counter)
-                        self.parts.append(f"\n\\includeFigure{{{image_path}}}{{{caption}}}{{{label}}}\n")
-                    else:
-                        self.parts.append(f"\n\\includeEvidence{{{image_path}}}\n")
-                self.in_figure = False
-                self.in_figcaption = False
-                self.figure_filename = ""
-                self.figure_caption_parts = []
-                return
-            return
-
         if tag == "div":
             self.parts.append("\n\n")
             return
@@ -218,10 +152,6 @@ class HtmlToLatexParser(HTMLParser):
         data = data.replace("\xa0", " ")
         if self.in_pre:
             self.pre_parts.append(data)
-            return
-        if self.in_figure:
-            if self.in_figcaption:
-                self.figure_caption_parts.append(escape_latex_text(data))
             return
         if self.in_inline_code:
             self.parts.append(data)

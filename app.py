@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import os
-import re
 import shutil
 
 app = Flask(__name__)
@@ -20,15 +19,6 @@ FILE_FIELDS = [
     "mitigation.txt",
     "references.txt"
 ]
-
-RICH_TEXT_FIELDS = [
-    "details.txt",
-    "confirmation.txt",
-    "impact.txt",
-    "mitigation.txt",
-    "references.txt",
-]
-IMAGE_REFERENCE_ATTR = "data-image-filename"
 
 
 def get_findings():
@@ -60,68 +50,6 @@ def get_prewrites():
 
 def allowed_image_file(filename):
     return '.' in filename and filename.rsplit('.',1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
-
-
-def get_finding_path(finding_name):
-    return os.path.join(FINDINGS_DIR, finding_name)
-
-
-def read_finding_file(finding_path, filename):
-    fpath = os.path.join(finding_path, filename)
-    if not os.path.exists(fpath):
-        return ""
-    with open(fpath, "r", encoding="utf-8") as f:
-        return f.read()
-
-
-def write_finding_file(finding_path, filename, content):
-    fpath = os.path.join(finding_path, filename)
-    with open(fpath, "w", encoding="utf-8") as f:
-        f.write(content or "")
-
-
-def image_reference_pattern(filename):
-    escaped_filename = re.escape(filename)
-    return re.compile(
-        rf"<figure\b[^>]*\b{IMAGE_REFERENCE_ATTR}=(['\"]){escaped_filename}\1[^>]*>.*?</figure>",
-        re.IGNORECASE | re.DOTALL,
-    )
-
-
-def get_image_references(finding_name, filename):
-    finding_path = get_finding_path(finding_name)
-    references = []
-    pattern = image_reference_pattern(filename)
-
-    for field in RICH_TEXT_FIELDS:
-        content = read_finding_file(finding_path, field)
-        count = len(pattern.findall(content))
-        if count:
-            references.append({
-                "field": field,
-                "count": count,
-            })
-
-    return references
-
-
-def remove_image_references_everywhere(finding_name, filename):
-    finding_path = get_finding_path(finding_name)
-    pattern = image_reference_pattern(filename)
-    removed = []
-
-    for field in RICH_TEXT_FIELDS:
-        content = read_finding_file(finding_path, field)
-        updated_content, replacements = pattern.subn("", content)
-        if replacements:
-            updated_content = re.sub(r"(\s*<(div|p)><br></\2>\s*){3,}", "<div><br></div><div><br></div>", updated_content)
-            write_finding_file(finding_path, field, updated_content.strip())
-            removed.append({
-                "field": field,
-                "count": replacements,
-            })
-
-    return removed
 
 @app.route("/")
 def index():
@@ -177,11 +105,16 @@ def get_finding(finding_name):
     if finding_name not in get_findings():
         return jsonify({"error": "Finding not found"}), 404
 
-    finding_path = get_finding_path(finding_name)
+    finding_path = os.path.join(FINDINGS_DIR, finding_name)
     data = {}
 
     for fname in FILE_FIELDS:
-        data[fname] = read_finding_file(finding_path, fname)
+        fpath = os.path.join(finding_path, fname)
+        if os.path.exists(fpath):
+            with open(fpath, "r", encoding="utf-8") as f:
+                data[fname] = f.read()
+        else:
+            data[fname] = ""
 
     return jsonify({
         "name": finding_name,
@@ -197,12 +130,14 @@ def update_finding(finding_name):
     data = request.get_json(force=True)
     files = data.get("files", {})
 
-    finding_path = get_finding_path(finding_name)
+    finding_path = os.path.join(FINDINGS_DIR, finding_name)
 
     for fname, content in files.items():
         if fname not in FILE_FIELDS:
             continue  # ignore unexpected keys
-        write_finding_file(finding_path, fname, content)
+        fpath = os.path.join(finding_path, fname)
+        with open(fpath, "w", encoding="utf-8") as f:
+            f.write(content or "")
 
     return jsonify({"status": "ok"})
 
@@ -211,7 +146,7 @@ def delete_finding(finding_name):
     if finding_name not in get_findings():
         return jsonify({"error": "Finding not found"}), 404
 
-    finding_path = get_finding_path(finding_name)
+    finding_path = os.path.join(FINDINGS_DIR, finding_name)
     shutil.rmtree(finding_path)
     return jsonify({"status": "ok"})
 
@@ -220,7 +155,7 @@ def list_images(finding_name):
     if finding_name not in get_findings():
         return jsonify({"error": "Finding not found"}), 404
     
-    images_dir = os.path.join(get_finding_path(finding_name), "images")
+    images_dir = os.path.join(FINDINGS_DIR, finding_name, "images")
     if not os.path.exists(images_dir):
         return jsonify({"images": []})
 
@@ -245,7 +180,7 @@ def upload_image(finding_name):
 
     if file and allowed_image_file(file.filename):
         filename = secure_filename(file.filename)
-        images_dir = os.path.join(get_finding_path(finding_name), "images")
+        images_dir = os.path.join(FINDINGS_DIR, finding_name, "images")
         os.makedirs(images_dir, exist_ok=True)
 
         filepath = os.path.join(images_dir, filename)
@@ -259,34 +194,18 @@ def delete_image(finding_name, filename):
     if finding_name not in get_findings():
         return jsonify({"error": "Finding not found"}), 404
 
-    images_dir = os.path.join(get_finding_path(finding_name), "images")
+    images_dir = os.path.join(FINDINGS_DIR, finding_name, "images")
     filepath = os.path.join(images_dir, filename)
-    delete_everywhere = request.args.get("delete_everywhere") == "1"
 
-    if not os.path.exists(filepath):
-        return jsonify({"error": "Image not found"}), 404
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return jsonify({"status": "ok"})
 
-    references = get_image_references(finding_name, filename)
-    if references and not delete_everywhere:
-        return jsonify({
-            "error": "Image is embedded in finding content",
-            "references": references,
-            "requires_confirmation": True,
-        }), 409
-
-    removed_references = []
-    if delete_everywhere and references:
-        removed_references = remove_image_references_everywhere(finding_name, filename)
-
-    os.remove(filepath)
-    return jsonify({
-        "status": "ok",
-        "removed_references": removed_references,
-    })
+    return jsonify({"error": "Image not found"}), 404
 
 @app.route("/api/findings/<finding_name>/images/<filename>", methods=["GET"])
 def serve_image(finding_name, filename):
-    images_dir = os.path.join(get_finding_path(finding_name), "images")
+    images_dir = os.path.join(FINDINGS_DIR, finding_name, "images")
     return send_from_directory(images_dir, filename)
 
 if __name__ == "__main__":

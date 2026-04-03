@@ -14,7 +14,7 @@ OUTPUT_IMAGE_DIR="$3/${FINDING_NAME}"
 
 # Helper: run html_2_tex.sh safely
 html_to_tex() {
-  CPTC_FINDING_NAME="$FINDING_NAME" ./html_2_tex.sh
+  ./html_2_tex.sh
 }
 listScore() {
   serialized="$(cat "${FINDING_DIR}cvs.txt")"
