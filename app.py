@@ -290,5 +290,6 @@ def serve_image(finding_name, filename):
     return send_from_directory(images_dir, filename)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    from waitress import serve
+    serve(app, host="0.0.0.0", port=5001)
 
