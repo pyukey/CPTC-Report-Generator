@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, redirect, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 import re
 import shutil
+import datetime
 
 app = Flask(__name__)
 
@@ -123,8 +124,47 @@ def remove_image_references_everywhere(finding_name, filename):
 
     return removed
 
+@app.before_request
+def log_request_info():
+    now = datetime.datetime.now()
+    match request.method:
+        case 'GET': 
+            if request.path == '/findings':
+                print(f"[{now}] {request.remote_addr} is viewing the Findings page.")
+            elif request.path.startswith('/api/findings/'):
+                parts = request.path.split("/")
+                if len(parts) == 4:
+                    print(f"[{now}] {request.remote_addr} is viewing Finding: {parts[3]}")
+            elif request.path.startswith('/api/prewrites/'):
+                parts = request.path.split("/")
+                if len(parts) == 4:
+                    print(f"[{now}] {request.remote_addr} loaded Prewrite: {parts[3]}")
+        case 'POST':
+            if request.path.startswith('/api/findings'):
+                parts = request.path.split("/")
+                if len(parts) == 3:
+                    print(f"[{now}] {request.remote_addr} created a new Finding")
+                elif len(parts) == 5 and parts[4] == 'images':
+                    print(f"[{now}] {request.remote_addr} uploaded an image to Finding: {parts[3]}")
+        case 'PUT':
+            if request.path.startswith('/api/findings/'):
+                parts = request.path.split("/")
+                if len(parts) == 4:
+                    print(f"[{now}] {request.remote_addr} updated Finding: {parts[3]}")
+        case 'DELETE':
+            if request.path.startswith('/api/findings/'):
+                parts = request.path.split("/")
+                if len(parts) == 4:
+                    print(f"[{now}] {request.remote_addr} deleted Finding: {parts[3]}")
+                if len(parts) == 6 and parts[4] == 'images':
+                    print(f"[{now}] {request.remote_addr} removed {parts[5]} from Finding: {parts[3]}")
+
 @app.route("/")
 def index():
+    return redirect('/findings', code=302)
+
+@app.route("/findings")
+def findings():
     return render_template("index.html")
 
 @app.route("/api/prewrites", methods=["GET"])
