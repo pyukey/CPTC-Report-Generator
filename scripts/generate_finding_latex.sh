@@ -33,8 +33,8 @@ listScore() {
   fi
 }
 
-if [ -d $INPUT_IMAGE_DIR ]; then
-  cp -r $INPUT_IMAGE_DIR $OUTPUT_IMAGE_DIR
+if [ -d "$INPUT_IMAGE_DIR" ]; then
+  cp -r "$INPUT_IMAGE_DIR" "$OUTPUT_IMAGE_DIR"
 fi
 
 {

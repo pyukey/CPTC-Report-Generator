@@ -7,14 +7,14 @@ GENERATE_FINDING_SCRIPT="./generate_finding_latex.sh"
 FINDINGS_LIST_SCRIPT="./generate_findings_list.sh"
 
 cd scripts
-mkdir -p $REPORT_FINDING_DIR
-mkdir -p $REPORT_IMAGE_DIR
+mkdir -p "$REPORT_FINDING_DIR"
+mkdir -p "$REPORT_IMAGE_DIR"
 
 for finding_dir in ../findings/*/; do
   # Skip if not a directory
   [ -d "$finding_dir" ] || continue
 
-  $GENERATE_FINDING_SCRIPT $finding_dir $REPORT_FINDING_DIR $REPORT_IMAGE_DIR
+  $GENERATE_FINDING_SCRIPT "$finding_dir" "$REPORT_FINDING_DIR" "$REPORT_IMAGE_DIR"
 done
 
 sort -ur ../scores.tmp > ../scores.txt
