@@ -10,9 +10,10 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 PREWRITES_DIR = os.path.join(BASE_DIR, "prewrites")
+OVERVIEW_DIR = os.path.join(BASE_DIR, "overviews")
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-FILE_FIELDS = [
+FINDING_FIELDS = [
     "cvs.txt",
     "ips.txt",
     "details.txt",
@@ -20,6 +21,25 @@ FILE_FIELDS = [
     "impact.txt",
     "mitigation.txt",
     "references.txt"
+]
+
+OVERVIEW_FIELDS = [
+    "team-name.txt",
+    "team-email.txt",
+    "team-phone.txt",
+    "client-name.txt",
+    "start-time.txt",
+    "end-time.txt",
+    "report-time.txt",
+    "short-scope.txt",
+    "executive.txt",
+    "rationale.txt",
+    "goals.txt",
+    "ai-workflow.txt",
+    "ai-efficacy.txt",
+    "scope.txt",
+    "strengths.txt",
+    "recommendations.txt"
 ]
 
 RICH_TEXT_FIELDS = [
@@ -44,7 +64,7 @@ def get_findings():
 def init_finding_structure(name):
     finding_path = os.path.join(FINDINGS_DIR, name)
     os.makedirs(finding_path, exist_ok=True)
-    for fname in FILE_FIELDS:
+    for fname in FINDING_FIELDS:
         fpath = os.path.join(finding_path, fname)
         if not os.path.exists(fpath):
             with open(fpath, "w", encoding="utf-8") as f:
@@ -67,7 +87,7 @@ def get_finding_path(finding_name):
     return os.path.join(FINDINGS_DIR, finding_name)
 
 
-def read_finding_file(finding_path, filename):
+def read_file(finding_path, filename):
     fpath = os.path.join(finding_path, filename)
     if not os.path.exists(fpath):
         return ""
@@ -75,7 +95,7 @@ def read_finding_file(finding_path, filename):
         return f.read()
 
 
-def write_finding_file(finding_path, filename, content):
+def write_file(finding_path, filename, content):
     fpath = os.path.join(finding_path, filename)
     with open(fpath, "w", encoding="utf-8") as f:
         f.write(content or "")
@@ -95,7 +115,7 @@ def get_image_references(finding_name, filename):
     pattern = image_reference_pattern(filename)
 
     for field in RICH_TEXT_FIELDS:
-        content = read_finding_file(finding_path, field)
+        content = read_file(finding_path, field)
         count = len(pattern.findall(content))
         if count:
             references.append({
@@ -112,11 +132,11 @@ def remove_image_references_everywhere(finding_name, filename):
     removed = []
 
     for field in RICH_TEXT_FIELDS:
-        content = read_finding_file(finding_path, field)
+        content = read_file(finding_path, field)
         updated_content, replacements = pattern.subn("", content)
         if replacements:
             updated_content = re.sub(r"(\s*<(div|p)><br></\2>\s*){3,}", "<div><br></div><div><br></div>", updated_content)
-            write_finding_file(finding_path, field, updated_content.strip())
+            write_file(finding_path, field, updated_content.strip())
             removed.append({
                 "field": field,
                 "count": replacements,
@@ -131,6 +151,8 @@ def log_request_info():
         case 'GET': 
             if request.path == '/findings':
                 print(f"[{now}] {request.remote_addr} is viewing the Findings page.")
+            elif request.path == '/overviews':
+                print(f"[{now}] {request.remote_addr} is viewing the Overviews page.")
             elif request.path.startswith('/api/findings/'):
                 parts = request.path.split("/")
                 if len(parts) == 4:
@@ -139,6 +161,8 @@ def log_request_info():
                 parts = request.path.split("/")
                 if len(parts) == 4:
                     print(f"[{now}] {request.remote_addr} loaded Prewrite: {parts[3]}")
+            elif request.path == '/api/overviews':
+                print(f"[{now}] {request.remote_addr} is loading the Overviews data")
         case 'POST':
             if request.path.startswith('/api/findings'):
                 parts = request.path.split("/")
@@ -151,6 +175,8 @@ def log_request_info():
                 parts = request.path.split("/")
                 if len(parts) == 4:
                     print(f"[{now}] {request.remote_addr} updated Finding: {parts[3]}")
+            elif request.path == '/api/overviews':
+                print(f"[{now}] {request.remote_addr} updated the Overviews")
         case 'DELETE':
             if request.path.startswith('/api/findings/'):
                 parts = request.path.split("/")
@@ -165,7 +191,11 @@ def index():
 
 @app.route("/findings")
 def findings():
-    return render_template("index.html")
+    return render_template("findings.html")
+
+@app.route("/overviews")
+def overview():
+    return render_template("overview.html")
 
 @app.route("/api/prewrites", methods=["GET"])
 def list_prewrites():
@@ -178,7 +208,7 @@ def get_prewrite(prewrite_name):
 
     prewrite_path = os.path.join(PREWRITES_DIR, prewrite_name)
     data = {}
-    for fname in FILE_FIELDS:
+    for fname in FINDING_FIELDS:
         fpath = os.path.join(prewrite_path, fname)
         if os.path.exists(fpath):
             with open(fpath, "r", encoding="utf-8") as f:
@@ -220,8 +250,8 @@ def get_finding(finding_name):
     finding_path = get_finding_path(finding_name)
     data = {}
 
-    for fname in FILE_FIELDS:
-        data[fname] = read_finding_file(finding_path, fname)
+    for fname in FINDING_FIELDS:
+        data[fname] = read_file(finding_path, fname)
 
     return jsonify({
         "name": finding_name,
@@ -240,9 +270,9 @@ def update_finding(finding_name):
     finding_path = get_finding_path(finding_name)
 
     for fname, content in files.items():
-        if fname not in FILE_FIELDS:
+        if fname not in FINDING_FIELDS:
             continue  # ignore unexpected keys
-        write_finding_file(finding_path, fname, content)
+        write_file(finding_path, fname, content)
 
     return jsonify({"status": "ok"})
 
@@ -328,6 +358,27 @@ def delete_image(finding_name, filename):
 def serve_image(finding_name, filename):
     images_dir = os.path.join(get_finding_path(finding_name), "images")
     return send_from_directory(images_dir, filename)
+
+@app.route("/api/overviews", methods=["GET"])
+def get_overview():
+    data = {}
+    for fname in OVERVIEW_FIELDS:
+        data[fname] = read_file(OVERVIEW_DIR, fname)
+
+    return jsonify({
+        "files": data
+    })
+
+@app.route("/api/overviews", methods=["PUT"])
+def update_overview():
+    data = request.get_json(force=True)
+    files = data.get("files", {})
+
+    for fname, content in files.items():
+        if fname not in OVERVIEW_FIELDS:
+            continue
+        write_file(OVERVIEW_DIR, fname, content)
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     from waitress import serve

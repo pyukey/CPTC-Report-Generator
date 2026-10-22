@@ -117,6 +117,20 @@ body {
   max-height: 160px;
   overflow-y: auto;
 }
+#team-details {
+  display: flex;
+  gap: 10px;
+}
+#team-details .field-section {
+  flex: 1;
+}
+#time-details {
+  display: flex;
+  gap: 10px;
+}
+#time-details .field-section {
+  flex: 1;
+}
 .field-section {
   margin-bottom: 24px;
   border: 1px solid #eee;
