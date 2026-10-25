@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import datetime
+import json
 
 app = Flask(__name__)
 
@@ -11,6 +12,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 PREWRITES_DIR = os.path.join(BASE_DIR, "prewrites")
 OVERVIEW_DIR = os.path.join(BASE_DIR, "overviews")
+APPENDIX_DIR = os.path.join(BASE_DIR, "appendix")
+TOOLS_DIR = os.path.join(APPENDIX_DIR, "tools")
+APPENDICES_DIR = os.path.join(APPENDIX_DIR, "entries")
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 FINDING_FIELDS = [
@@ -52,14 +56,25 @@ RICH_TEXT_FIELDS = [
 IMAGE_REFERENCE_ATTR = "data-image-filename"
 
 
-def get_findings():
-    if not os.path.exists(FINDINGS_DIR):
-        os.makedirs(FINDINGS_DIR, exist_ok=True)
+def list_files(path, wantDirs=False):
+    if not os.path.exists(path):
+        return []
     return sorted(
-        d for d in os.listdir(FINDINGS_DIR)
-        if os.path.isdir(os.path.join(FINDINGS_DIR, d))
+        d for d in os.listdir(path)
+        if not wantDirs or os.path.isdir(os.path.join(path, d))
     )
 
+def get_findings():
+    return list_files(FINDINGS_DIR, True)
+
+def get_prewrites():
+    return list_files(PREWRITES_DIR)
+
+def get_tools():
+    return list_files(TOOLS_DIR)
+
+def get_entries():
+    return list_files(APPENDICES_DIR)
 
 def init_finding_structure(name):
     finding_path = os.path.join(FINDINGS_DIR, name)
@@ -70,14 +85,6 @@ def init_finding_structure(name):
             with open(fpath, "w", encoding="utf-8") as f:
                 f.write("")
     return finding_path
-
-def get_prewrites():
-    if not os.path.exists(PREWRITES_DIR):
-        return []
-    return sorted(
-        d for d in os.listdir(PREWRITES_DIR)
-        if os.path.isdir(os.path.join(PREWRITES_DIR, d))
-    )
 
 def allowed_image_file(filename):
     return '.' in filename and filename.rsplit('.',1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
@@ -161,8 +168,10 @@ def log_request_info():
                 parts = request.path.split("/")
                 if len(parts) == 4:
                     print(f"[{now}] {request.remote_addr} loaded Prewrite: {parts[3]}")
-            elif request.path == '/api/overviews':
-                print(f"[{now}] {request.remote_addr} is loading the Overviews data")
+            elif request.path == '/api/appendix/tools':
+                print(f"[{now}] {request.remote_addr} is loading the Appendix tools")
+            elif request.path == '/api/appendix/entry':
+                print(f"[{now}] {request.remote_addr} is loading the Appendix entries")
         case 'POST':
             if request.path.startswith('/api/findings'):
                 parts = request.path.split("/")
@@ -177,6 +186,10 @@ def log_request_info():
                     print(f"[{now}] {request.remote_addr} updated Finding: {parts[3]}")
             elif request.path == '/api/overviews':
                 print(f"[{now}] {request.remote_addr} updated the Overviews")
+            elif request.path == '/api/appendix/tools':
+                print(f"[{now}] {request.remote_addr} updated the Appendix tools")
+            elif request.path == '/api/appendix/entry':
+                print(f"[{now}] {request.remote_addr} updated the Appendix entries")
         case 'DELETE':
             if request.path.startswith('/api/findings/'):
                 parts = request.path.split("/")
@@ -184,6 +197,12 @@ def log_request_info():
                     print(f"[{now}] {request.remote_addr} deleted Finding: {parts[3]}")
                 if len(parts) == 6 and parts[4] == 'images':
                     print(f"[{now}] {request.remote_addr} removed {parts[5]} from Finding: {parts[3]}")
+            elif request.path.startswith('/api/appendix/tools/'):
+                parts = request.path.split("/")
+                print(f"[{now}] {request.remote_addr} deleted Appendix tool: {parts[4]}")
+            elif request.path.startswith('/api/appendix/entry/'):
+                parts = request.path.split("/")
+                print(f"[{now}] {request.remote_addr} deleted Appendix entry: {parts[4]}")
 
 @app.route("/")
 def index():
@@ -196,6 +215,10 @@ def findings():
 @app.route("/overviews")
 def overview():
     return render_template("overview.html")
+
+@app.route("/appendix")
+def appendix():
+    return render_template("appendix.html")
 
 @app.route("/api/prewrites", methods=["GET"])
 def list_prewrites():
@@ -379,6 +402,49 @@ def update_overview():
             continue
         write_file(OVERVIEW_DIR, fname, content)
     return jsonify({"status": "ok"})
+
+@app.route("/api/appendix/tools", methods=["GET"])
+def get_tool():
+    data = {}
+    for fname in get_tools():
+        data[fname.split('.')[0]] = json.loads(read_file(TOOLS_DIR, fname))
+    return data
+
+@app.route("/api/appendix/tools", methods=["PUT"])
+def update_tools():
+    data = request.get_json(force=True)
+    files = data.get("files", {})
+
+    for fname, content in files.items():
+        write_file(TOOLS_DIR, f"{fname}.json", json.dumps(content))
+    return jsonify({"status": "ok"})
+
+@app.route("/api/appendix/tools/<tool_name>", methods=["DELETE"])
+def delete_tools(tool_name):
+    os.remove(os.path.join(TOOLS_DIR, f"{tool_name}.json"))
+    return jsonify({"status": "ok"})
+
+@app.route("/api/appendix/entry", methods=["GET"])
+def get_appendix():
+    data = {}
+    for fname in get_entries():
+        data[fname.split('.')[0]] = read_file(APPENDICES_DIR, fname)
+    return data
+
+@app.route("/api/appendix/entry", methods=["PUT"])
+def update_appendix():
+    data = request.get_json(force=True)
+    files = data.get("files", {})
+
+    for fname, content in files.items():
+        write_file(APPENDICES_DIR, f"{fname}.txt", content)
+    return jsonify({"status": "ok"})
+
+@app.route("/api/appendix/entry/<appendix_name>", methods=["DELETE"])
+def delete_appendix(appendix_name):
+    os.remove(os.path.join(APPENDICES_DIR, f"{appendix_name}.txt"))
+    return jsonify({"status": "ok"})
+
 
 if __name__ == "__main__":
     from waitress import serve

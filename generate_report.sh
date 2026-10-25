@@ -5,10 +5,12 @@ REPORT_CONTENT_DIR="${REPORT_BASE_DIR}content/"
 REPORT_FINDING_DIR="${REPORT_CONTENT_DIR}technicalReport/findings/"
 REPORT_IMAGE_DIR="${REPORT_BASE_DIR}images/findings/"
 FINDINGS_LIST_LOC="${REPORT_CONTENT_DIR}technicalReport/allFindings.tex"
+APPENDIX_FILE="${REPORT_CONTENT_DIR}appendices.tex"
 GENERATE_FINDING_SCRIPT="./generate_finding_latex.sh"
 FINDINGS_LIST_SCRIPT="./generate_findings_list.sh"
 SETTING_FILE="../report/settings/settings.tex"
 OVERVIEW_DIR="../overviews/"
+APPENDIX_DIR="../appendix/"
 
 # Translate findings
 cd scripts
@@ -145,3 +147,31 @@ writeTex "ai-efficacy.txt" "${REPORT_CONTENT_DIR}engagementOverview/AIefficacy.t
 writeTex "scope.txt" "${REPORT_CONTENT_DIR}engagementOverview/scope.tex"
 writeTex "strengths.txt" "${REPORT_CONTENT_DIR}engagementOverview/keyStrengths.tex"
 writeTex "recommendations.txt" "${REPORT_CONTENT_DIR}engagementOverview/recommendations.tex"
+
+# Translate appendix
+(echo '\section{Appendices}'; echo ''; echo '\renewcommand{\currentFindingColor}{black}'; echo '\renewcommand{\currentFindingBackground}{black}'; echo '') > ${APPENDIX_FILE}
+for app_file in ${APPENDIX_DIR}entries/*; do
+  # Skip if not .txt
+  echo $app_file | grep -q '.txt' || continue
+
+  appId="$(echo $app_file | sed 's/^\(.*\).txt$/\1/')"
+  appName="$(head -n 1 $app_file)"
+  echo "\newAppendix{${appName}} \label{sec:${appId}}" >> ${APPENDIX_FILE}
+  ./html_2_tex.sh < <(tail -n +2 $app_file) >> ${APPENDIX_FILE}
+  echo '\newpage' >> ${APPENDIX_FILE}
+  echo '' >> ${APPENDIX_FILE}
+done
+
+echo '\newAppendix{Tools Used} \label{sec:toolsAppendix}' >> ${APPENDIX_FILE}
+for tool_file in ${APPENDIX_DIR}tools/*; do
+  # Ship if not .json
+  echo $tool_file | grep -q '.json' || continue
+
+  toolName=$(./html_2_tex.sh < <(jq -r '.name' "$tool_file"))
+  toolVersion=$(./html_2_tex.sh < <(jq -r '.version' "$tool_file"))
+  toolLink=$(./html_2_tex.sh < <(jq -r '.link' "$tool_file"))
+  toolDescription=$(./html_2_tex.sh < <(jq -r '.description' "$tool_file"))
+
+  echo "\toolref{${toolName}}{${toolVersion}}{${toolDescription}}{${toolLink}}" >> ${APPENDIX_FILE}
+  echo '' >> ${APPENDIX_FILE}
+done

@@ -52,6 +52,10 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.del-block {
+  display: flex;
+  gap: 10px;
+}
 .delete-finding-btn {
   background: #dc3545;
   color: white;
@@ -91,8 +95,13 @@ body {
   font-family: monospace;
   font-size: 13px;
 }
-#save-btn {
+.simple-btn {
   padding: 8px 12px;
+}
+#btn-row {
+  display: flex;
+  justify-content: space-evenly;
+  margin-bottom: 10px;
 }
 #status {
   margin-left: 10px;
@@ -137,6 +146,9 @@ body {
   border-radius: 8px;
   padding: 16px;
   background: #fafafa;
+}
+.field-section .second-row {
+  margin-top: -10px;
 }
 .field-header {
   display: flex;
@@ -188,6 +200,25 @@ body {
   background: #ffc107;
   color: #333;
   animation: pulse 1s infinite;
+}
+.sub-field {
+  display: flex;
+  align-items: center;
+  flex-direction: column;  
+  padding-left: 15px;
+  padding-right: 15px;
+  width: 100%;
+}
+.sub-field h3 {
+  text-align: center;
+  margin-bottom: 12px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #ddd;
+  width: 100%;
+}
+.sub-field .text-box {
+  width: 100%;
+  box-sizing: border-box;
 }
 .images-section {
   margin-top: 32px;
