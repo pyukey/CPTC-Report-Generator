@@ -15,6 +15,7 @@ OVERVIEW_DIR = os.path.join(BASE_DIR, "overviews")
 APPENDIX_DIR = os.path.join(BASE_DIR, "appendix")
 TOOLS_DIR = os.path.join(APPENDIX_DIR, "tools")
 APPENDICES_DIR = os.path.join(APPENDIX_DIR, "entries")
+FILESHARE_DIR = os.path.join(BASE_DIR, "fileshare")
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 FINDING_FIELDS = [
@@ -68,13 +69,20 @@ def get_findings():
     return list_files(FINDINGS_DIR, True)
 
 def get_prewrites():
-    return list_files(PREWRITES_DIR)
+    return list_files(PREWRITES_DIR, True)
 
 def get_tools():
     return list_files(TOOLS_DIR)
 
 def get_entries():
     return list_files(APPENDICES_DIR)
+
+def get_files_share():
+    dirs = list_files(FILESHARE_DIR, True)
+    data = {}
+    for d in dirs:
+        data[d] = list_files(os.path.join(FILESHARE_DIR,d))
+    return data
 
 def init_finding_structure(name):
     finding_path = os.path.join(FINDINGS_DIR, name)
@@ -219,6 +227,10 @@ def overview():
 @app.route("/appendix")
 def appendix():
     return render_template("appendix.html")
+
+@app.route("/fileshare")
+def fileshare():
+    return render_template("fileshare.html")
 
 @app.route("/api/prewrites", methods=["GET"])
 def list_prewrites():
@@ -445,6 +457,50 @@ def delete_appendix(appendix_name):
     os.remove(os.path.join(APPENDICES_DIR, f"{appendix_name}.txt"))
     return jsonify({"status": "ok"})
 
+@app.route("/api/fileshare", methods=["GET"])
+def get_fileshare():
+    return jsonify(get_files_share())
+
+@app.route("/api/fileshare/<group_name>", methods=["POST"])
+def create_group(group_name):
+    group_path = os.path.join(FILESHARE_DIR, group_name)
+    os.makedirs(group_path, exist_ok=True)
+    return jsonify({"status": "ok"})
+
+@app.route("/api/fileshare/<group_name>", methods=["DELETE"])
+def delete_group(group_name):
+    group_path = os.path.join(FILESHARE_DIR, group_name)
+    shutil.rmtree(group_path)
+    return jsonify({"status": "ok"})
+
+@app.route("/api/fileshare/<group_name>/<file_name>", methods=["GET"])
+def download_file(group_name,file_name):
+    group_path = os.path.join(FILESHARE_DIR, group_name)
+    return send_from_directory(group_path, file_name)
+
+@app.route("/api/fileshare/<group_name>/<file_name>", methods=["POST"])
+def upload_file(group_name, file_name):
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    filename = secure_filename(file.filename)
+    group_path = os.path.join(FILESHARE_DIR, group_name)
+    os.makedirs(group_path, exist_ok=True)
+
+    file.save(os.path.join(group_path, filename))
+    return jsonify({"status": "ok", "filename": filename})
+
+@app.route("/api/fileshare/<group_name>/<file_name>", methods=["DELETE"])
+def delete_file(group_name, file_name):
+    file_path = os.path.join(os.path.join(FILESHARE_DIR, group_name), file_name)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return jsonify({"status": "ok"})
+    return jsonify({"status": "File not found"})
 
 if __name__ == "__main__":
     from waitress import serve
