@@ -15,6 +15,7 @@ OVERVIEW_DIR = os.path.join(BASE_DIR, "overviews")
 APPENDIX_DIR = os.path.join(BASE_DIR, "appendix")
 TOOLS_DIR = os.path.join(APPENDIX_DIR, "tools")
 APPENDICES_DIR = os.path.join(APPENDIX_DIR, "entries")
+FILESHARE_DIR = os.path.join(BASE_DIR, "fileshare")
 PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
 INVENTORY_DIR = os.path.join(BASE_DIR, "inventory")
 os.makedirs(PLAYBOOKS_DIR, exist_ok=True)
@@ -216,7 +217,38 @@ def log_request_info():
 
 @app.route("/")
 def index():
-    return redirect('/findings', code=302)
+    return render_template("index.html")
+
+@app.route("/report")
+def serve_report():
+    return send_from_directory(os.path.join(BASE_DIR, "report"), "main.pdf")
+
+@app.route("/api/report-images/<filename>", methods=["POST"])
+def upload_report_image(filename):
+    if 'image' not in request.files:
+        return jsonify({"error": "No image provided"}), 400
+    
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({"error": "No image selected"}), 400
+
+    images_dir = os.path.join(BASE_DIR, "report", "images")
+    os.makedirs(images_dir, exist_ok=True)
+    
+    file.save(os.path.join(images_dir, filename))
+    return jsonify({"status": "ok", "filename": filename})
+
+@app.route("/api/generate-report", methods=["POST"])
+def generate_report():
+    try:
+        import subprocess
+        report_dir = os.path.join(BASE_DIR, "report")
+        subprocess.run(["xelatex", "main.tex"], cwd=report_dir, check=True, capture_output=True)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/findings")
 
 @app.route("/findings")
 def findings():
