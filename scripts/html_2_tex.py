@@ -126,47 +126,38 @@ class HtmlToLatexParser(HTMLParser):
                 return
             return
 
-        if tag == "figure":
-            self.in_figure = True
-            self.in_figcaption = False
-            self.figure_filename = resolve_image_filename(attr_map)
-            self.figure_caption_parts = []
-            return
-
-        if tag == "div":
-            return
-        if tag == "br":
-            self.parts.append("\\bigskip\n")
-            return
-        if tag in {"b", "strong"}:
-            self.parts.append(r"\textbf{")
-            return
-        if tag in {"i", "em"}:
-            self.parts.append(r"\textit{")
-            return
-        if tag == "ul":
-            self.parts.append("\\begin{itemize}\n")
-            return
-        if tag == "ol":
-            self.parts.append("\\begin{enumerate}\n")
-            return
-        if tag == "li":
-            self.parts.append("\\item ")
-            return
-        if tag == "pre":
-            self.in_pre = True
-            self.pre_parts = []
-            return
-        if tag == "code":
-            if self.in_pre:
-                return
-            self.in_inline_code = True
-            self.parts.append(r"\texttt{\detokenize{")
-            return
-        if tag == "a":
-            href = escape_latex_url(attr_map.get("href") or "")
-            self.parts.append(f"\\href{{{href}}}{{")
-            return
+        match tag:
+            case "figure":
+                self.in_figure = True
+                self.in_figcaption = False
+                self.figure_filename = resolve_image_filename(attr_map)
+                self.figure_caption_parts = []
+            case "br":
+                self.parts.append("\\bigskip\n")
+            case "b":
+                self.parts.append(r"\textbf{")
+            case "strong":
+                self.parts.append(r"\paragraph{")
+            case "i" | "em":
+                self.parts.append(r"\textit{")
+            case "ul":
+                self.parts.append("\\begin{itemize}\n")
+            case "ol":
+                self.parts.append("\\begin{enumerate}\n")
+            case "li":
+                self.parts.append("\\item ")
+            case "pre":
+                self.in_pre = True
+                self.pre_parts = []
+            case "code":
+                if self.in_pre:
+                    return
+                self.in_inline_code = True
+                self.parts.append(r"\texttt{\detokenize{")
+            case "a":
+                href = escape_latex_url(attr_map.get("href") or "")
+                self.parts.append(f"\\href{{{href}}}{{")
+        return
 
     def handle_endtag(self, tag: str) -> None:
         if self.in_figure:
@@ -190,29 +181,26 @@ class HtmlToLatexParser(HTMLParser):
                 return
             return
 
-        if tag == "div":
-            self.parts.append("\n\n")
-            return
-        if tag in {"b", "strong", "i", "em", "a"}:
-            self.parts.append("}")
-            return
-        if tag == "ul":
-            self.parts.append("\n\\end{itemize}")
-            return
-        if tag == "ol":
-            self.parts.append("\n\\end{enumerate}")
-            return
-        if tag == "pre":
-            content = "".join(self.pre_parts).strip("\n")
-            self.parts.append("\\begin{verbatim}\n")
-            self.parts.append(content)
-            self.parts.append("\n\\end{verbatim}\n")
-            self.in_pre = False
-            self.pre_parts = []
-            return
-        if tag == "code" and not self.in_pre:
-            self.in_inline_code = False
-            self.parts.append("}}")
+        match tag:
+            case "div":
+                self.parts.append("\n\n")
+            case "b" | "strong" | "i" | "em" | "a":
+                self.parts.append("}")
+            case "ul":
+                self.parts.append("\n\\end{itemize}")
+            case "ol":
+                self.parts.append("\n\\end{enumerate}")
+            case "pre":
+                content = "\n".join(self.pre_parts).strip("\n")
+                self.parts.append("\\begin{verbatim}\n")
+                self.parts.append(content)
+                self.parts.append("\n\\end{verbatim}\n")
+                self.in_pre = False
+                self.pre_parts = []
+            case "code":
+                if not self.in_pre:
+                    self.in_inline_code = False
+                    self.parts.append("}}")
 
     def handle_data(self, data: str) -> None:
         data = data.replace("\xa0", " ")
