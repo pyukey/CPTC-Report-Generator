@@ -15,8 +15,10 @@ OVERVIEW_DIR = os.path.join(BASE_DIR, "overviews")
 APPENDIX_DIR = os.path.join(BASE_DIR, "appendix")
 TOOLS_DIR = os.path.join(APPENDIX_DIR, "tools")
 APPENDICES_DIR = os.path.join(APPENDIX_DIR, "entries")
-FILESHARE_DIR = os.path.join(BASE_DIR, "fileshare")
-ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+PLAYBOOKS_DIR = os.path.join(BASE_DIR, "playbooks")
+INVENTORY_DIR = os.path.join(BASE_DIR, "inventory")
+os.makedirs(PLAYBOOKS_DIR, exist_ok=True)
+os.makedirs(INVENTORY_DIR, exist_ok=True)
 
 FINDING_FIELDS = [
     "cvs.txt",
@@ -231,6 +233,10 @@ def appendix():
 @app.route("/fileshare")
 def fileshare():
     return render_template("fileshare.html")
+
+@app.route("/inventory")
+def inventory():
+    return render_template("inventory.html")
 
 @app.route("/api/prewrites", methods=["GET"])
 def list_prewrites():
@@ -501,6 +507,68 @@ def delete_file(group_name, file_name):
         os.remove(file_path)
         return jsonify({"status": "ok"})
     return jsonify({"status": "File not found"})
+
+@app.route("/api/playbook", methods=["GET"])
+def get_playbooks():
+    playbooks = {}
+    for fname in os.listdir(PLAYBOOKS_DIR):
+        if fname.endswith(".json"):
+            name = fname[:-5]
+            with open(os.path.join(PLAYBOOKS_DIR, fname), "r", encoding="utf-8") as f:
+                playbooks[name] = json.load(f)
+    return jsonify(playbooks)
+
+@app.route("/api/playbook/<playbook_name>", methods=["GET"])
+def get_playbook(playbook_name):
+    fpath = os.path.join(PLAYBOOKS_DIR, f"{playbook_name}.json")
+    if not os.path.exists(fpath):
+        return jsonify({"error": "Playbook not found"}), 404
+    with open(fpath, "r", encoding="utf-8") as f:
+        return jsonify(json.load(f))
+
+@app.route("/api/inventory/<ip>", methods=["POST"])
+def save_host(ip):
+    data = request.get_json(force=True)
+    safe_name = secure_filename(f"{ip}.json")
+    with open(os.path.join(INVENTORY_DIR, safe_name), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    return jsonify({"status": "ok"})
+
+@app.route("/api/inventory/<ip>", methods=["DELETE"])
+def delete_host(ip):
+    safe_name = secure_filename(f"{ip}.json")
+    fpath = os.path.join(INVENTORY_DIR, safe_name)
+    if os.path.exists(fpath):
+        os.remove(fpath)
+        return jsonify({"status": "ok"})
+    return jsonify({"error": "Host not found"}), 404
+
+@app.route("/api/inventory", methods=["GET"])
+def get_inventory():
+    inventory = []
+    for fname in os.listdir(INVENTORY_DIR):
+        if fname.endswith(".json"):
+            with open(os.path.join(INVENTORY_DIR, fname), "r", encoding="utf-8") as f:
+                inventory.append(json.load(f))
+    return jsonify(inventory)
+
+@app.route("/api/inventory", methods=["PUT"])
+def update_inventory():
+    data = request.get_json(force=True)
+    if not isinstance(data, list):
+        return jsonify({"error": "Expected a list of hosts"}), 400
+    
+    for host in data:
+        # Use IP or hostname as filename
+        identifier = host.get("ip") or host.get("hostname")
+        if not identifier:
+            continue
+        
+        safe_name = secure_filename(f"{identifier}.json")
+        with open(os.path.join(INVENTORY_DIR, safe_name), "w", encoding="utf-8") as f:
+            json.dump(host, f, indent=2)
+            
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     from waitress import serve
